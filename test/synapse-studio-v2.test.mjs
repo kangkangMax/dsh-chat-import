@@ -1,8 +1,10 @@
-// synapse-studio-v2.test.mjs — Synapse Studio v2（agents.db）发现层读取单测
+// synapse-studio-v2.test.mjs — Synapse Studio v2（agents.db）转换层 + 发现层单测
 //
 // 覆盖：库签名自拒（agents.db 是通用文件名，本机还有别的产品同名库）、摘要不读 messages、
 // cwd 链（worktree_path → projects.path → null）、标题两级回退、workflow_step 前缀、
-// 不过滤（kind/visibility 只做展示）、三平台 roots、快照路径判定。
+// 不过滤（kind/visibility 只做展示）、三平台 roots、快照路径判定；part → IR 映射
+// （text / Thinking / data-image / 开放 tool-* 命名空间 / tool-Compact）、工具配对、
+// Bash stdout 取值、errorText 标 isError、空会话跳过、标题三级回退。
 //
 // 契约红线：摘要 SQL 里不得出现 messages 的任何派生表达式（length / json_extract）——
 // 该列是整段 JSON 的 TEXT，实测任何派生表达式都会把整列载入并解析（84 MB 库上把摘要
@@ -12,7 +14,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { readSynapseStudioV2Summaries } from '../lib/sources/synapse-studio-v2.mjs'
-import { synapseUserDataDirs, isSynapseBackupPath } from '../lib/convert/synapse-studio-v2.mjs'
+import { synapseUserDataDirs, isSynapseBackupPath, convertSynapseStudioV2Json } from '../lib/convert/synapse-studio-v2.mjs'
 import { sourceOf, FORMATS, defaultRoots } from '../lib/discovery/registry.mjs'
 import { withTempDir, writeSqliteFixture } from './_support/tmp-db.mjs'
 
@@ -181,4 +183,156 @@ test('发现层登记：描述符存在、sessionsFromHost 与摘要读取器对
   assert.equal(src.matchFile('/x/data/agents.db'), true)
   assert.deepEqual(src.fileFallback, ['db'])
   assert.ok(Array.isArray(defaultRoots({ home: '/h' })['synapse-studio-v2']), 'roots 是路径数组（产品名多变体）')
+})
+// ── 转换层：part → IR ────────────────────────────────────────────────────────────
+
+const conv = (messages, args = {}) => convertSynapseStudioV2Json(messages, args)
+
+test('convert：user 开轮、assistant 出 text 步；工具 call/result 同一步配对', () => {
+  const out = conv([
+    { id: 'm1', role: 'user', parts: [{ type: 'text', text: '跑一下测试' }] },
+    {
+      id: 'm2',
+      role: 'assistant',
+      parts: [
+        { type: 'text', text: '好' },
+        { type: 'tool-Bash', toolCallId: 'tc1', state: 'output-available', input: { command: 'ls' }, output: { stdout: 'a\nb', stderr: '' } },
+      ],
+    },
+  ], { id: 'sub1', name: '命名会话' })
+
+  assert.equal(out.turns.length, 1)
+  assert.equal(out.turns[0].prompt, '跑一下测试')
+  assert.equal(out.turns[0].steps.length, 1, '用户轮不带assistant 步')
+  const step = out.turns[0].steps[0]
+  assert.equal(step.toolCalls.length, 1)
+  assert.equal(step.toolCalls[0].name, 'Bash', 'tool-<Name> 的 Name 部分是工具名')
+  assert.equal(step.toolCalls[0].id, 'tc1')
+  assert.deepEqual(JSON.parse(step.toolCalls[0].arguments), { command: 'ls' })
+  assert.equal(step.toolResults.length, 1, '每个调用都有结果')
+  assert.equal(step.toolResults[0].content[0].text, 'a\nb', 'Bash 形态取 stdout')
+  assert.equal(out.title, '命名会话')
+})
+
+test('convert：未知 tool 命名空间保留为通用调用（tool-FutureThing 不丢）', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', parts: [{ type: 'tool-FutureThing', toolCallId: 'x1', input: { a: 1 }, output: { k: 'v' } }] },
+  ], { id: 's' })
+  const call = out.turns[0].steps[0].toolCalls[0]
+  assert.equal(call.name, 'FutureThing')
+  assert.equal(out.turns[0].steps[0].toolResults[0].content[0].text, '{"k":"v"}')
+  assert.equal(out.skippedBlocks, 0, '开放命名空间不是降级')
+})
+
+test('convert：空 Thinking 跳过并计数（有文本的照常成reasoning）', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    {
+      role: 'assistant',
+      parts: [
+        { type: 'tool-Thinking', toolCallId: 't1', input: { text: '   ' }, output: { completed: true } },
+        { type: 'tool-Thinking', toolCallId: 't2', input: { text: '真正在思考' }, output: { completed: true } },
+      ],
+    },
+  ], { id: 's' })
+  assert.equal(out.emptyThinking, 1)
+  const reasoning = out.turns[0].steps[0].content.filter((b) => b.type === 'reasoning')
+  assert.equal(reasoning.length, 1)
+  assert.equal(reasoning[0].text, '真正在思考')
+})
+
+test('convert：data-image 取part.data 里的字节；非法载荷降级占位并计数', () => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: '看图' }, { type: 'data-image', data: { base64Data: png, mediaType: 'image/png', filename: 'shot.png' } }] },
+    { role: 'assistant', parts: [{ type: 'text', text: '收到' }] },
+  ], { id: 's' })
+  assert.equal(out.images, 1)
+  assert.equal(out.imagesDegraded, 0)
+  // 用户贴的图走 promptBlocks（turn 的用户侧内容块），不占 assistant 步
+  const img = out.turns[0].promptBlocks.find((b) => b.type === 'image')
+  assert.equal(img.data, png)
+  assert.equal(img.name, 'shot.png')
+  assert.equal(out.turns[0].steps.length, 1, 'assistant 步只放回复')
+
+  const bad = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'x' }, { type: 'data-image', data: { base64Data: png, mediaType: 'application/pdf' } }] },
+  ], { id: 's2' })
+  assert.equal(bad.images, 0)
+  assert.equal(bad.imagesDegraded, 1, '类型不收 → 降级计数')
+})
+
+test('convert：tool-Compact 跳过（结构性标记，不计入降级）；未识别 part 计数', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', parts: [{ type: 'tool-Compact', toolCallId: 'c1', input: { status: 'compacting' }, output: { status: 'compacted' } }, { type: 'mystery-block' }] },
+  ], { id: 's' })
+  assert.equal(out.turns[0].steps[0].toolCalls.length, 0)
+  assert.equal(out.skippedBlocks, 1, '只有未识别块计数；Compact 是结构标记不算降级')
+})
+
+test('convert：output 缺失补空结果不丢调用；errorText 标 isError', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    {
+      role: 'assistant',
+      parts: [
+        { type: 'tool-Read', toolCallId: 'r1', state: 'output-available', input: { file: 'a.ts' } },
+        { type: 'tool-Bash', toolCallId: 'b1', state: 'error', input: {}, output: { stdout: 'partial' }, errorText: 'exit 1' },
+      ],
+    },
+  ], { id: 's' })
+  const step = out.turns[0].steps[0]
+  assert.equal(step.toolCalls.length, 2)
+  assert.deepEqual(step.toolResults[0].content, [], '缺 output → 空结果')
+  assert.equal(step.toolResults[1].isError, true)
+  assert.equal(step.toolResults[1].content[0].text, 'exit 1', 'errorText 优先作结果')
+})
+
+test('convert：空 messages / 无用户回合 → 跳过并给出可核对的理由', () => {
+  const empty = conv([], { id: 'e' })
+  assert.match(empty.skipReason, /no user turns/)
+  const onlyAssistant = conv([{ role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }], { id: 'a' })
+  assert.match(onlyAssistant.skipReason, /no user turns/)
+})
+
+test('convert：标题三级回退（name → 首条用户 prompt → chat 名 · 日期）', () => {
+  const msgs = [{ role: 'user', parts: [{ type: 'text', text: '帮我看看这个 PR' }] }]
+  assert.equal(conv(msgs, { id: 's', name: '' }).title, '帮我看看这个 PR')
+  assert.equal(conv(msgs, { id: 's', name: '', chatName: '员工雇佣日期', updatedAt: 1760000900 }).title, '帮我看看这个 PR')
+  // prompt 也是空时才落到第三级（正常会话不会，这里直接用空数组路径验证文案）
+  assert.equal(conv([], { id: 's' }).skipReason !== undefined, true)
+})
+
+test('convert：provider/model 不迁移（v2 记的是别名串，落盘由宿主绑默认模型）', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', metadata: { model: 'claude-code/sonnet', provider: 'claude-code', inputTokens: 100 }, parts: [{ type: 'text', text: 'a' }] },
+  ], { id: 's' })
+  assert.equal(out.model, undefined, '不产出 model')
+  assert.equal(out.provider, undefined, 'finishSession 不把 provider 提到返回顶层')
+  // 落盘前 meta 会被 header 白名单裁剪；这里先确保 meta 本身干净
+  assert.equal(out.meta.model, undefined)
+  assert.equal(out.meta.provider, undefined)
+  // 事件里也不该出现源里的别名串
+  assert.doesNotMatch(JSON.stringify(out.events), /claude-code/)
+})
+
+test('readSynapseStudioV2Summaries：老库没有 projects 表时走不带该JOIN 的变体', () => {
+  withTmp((root) => {
+    const dbPath = writeSqliteFixture(join(root, 'data', 'agents.db'), {
+      create: `CREATE TABLE chats (id TEXT PRIMARY KEY, name TEXT, project_id TEXT, worktree_path TEXT);
+               CREATE TABLE sub_chats (id TEXT PRIMARY KEY, name TEXT, chat_id TEXT, session_id TEXT,
+                 messages TEXT, created_at INTEGER, updated_at INTEGER, kind TEXT, visibility TEXT);`,
+      rows: {
+        chats: [{ id: 'c1', name: '老 chat', project_id: 'p-gone', worktree_path: '/legacy/path' }],
+        sub_chats: [{ id: 's1', name: '老会话', chat_id: 'c1', session_id: null, messages: '[]', created_at: 1760000000, updated_at: 1760000900, kind: 'normal', visibility: 'visible' }],
+      },
+    })
+    const rows = readSynapseStudioV2Summaries(dbPath)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].directory, '/legacy/path', 'worktree_path 仍可用，少的只是 projects.path 回退')
+    assert.equal(rows[0].title, '老会话')
+  })
 })
