@@ -44,6 +44,7 @@
 | `crush` | Crush session db crush.db (<project>/.crush) |
 | `dsh` | DSH V0-V3 session logs session[.vN].jsonl[.zstd] ($DSH_HOME/sessions) |
 | `dsh4` | DSH V4+ session logs session.v4.jsonl[.zstd] ($DSH_HOME/sessions) |
+| `synapse-studio-v2` | Synapse Studio v2 session db agents.db (<userData>/data/agents.db; pre-DSH SQLite era) |
 | `local-jsonl` | Any local session file/dir — .jsonl/.jsonl.zstd/.json/.dshbundle.json; three-level auto-detect, parseFormat forces a parser |
 
 `local-jsonl` 本身不是来源，而是「没有来源认领这个文件」时的兜底入口：它自动识别 `dsh` /

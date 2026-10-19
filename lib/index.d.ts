@@ -117,7 +117,7 @@ export type ChatFormat =
   | 'claude' | 'codex' | 'chatgpt' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode'
   | 'mimocode' | 'kilocode' | 'teleagent' | 'zcode' | 'grokbuild' | 'openclaw' | 'hermes' | 'pi' | 'omp'
   | 'kimi' | 'qoder' | 'workbuddy' | 'qwen' | 'trae' | 'vibe' | 'continue' | 'cline' | 'goose'
-  | 'zed' | 'crush' | 'dsh' | 'dsh4' | 'local-jsonl'
+  | 'zed' | 'crush' | 'dsh' | 'dsh4' | 'synapse-studio-v2' | 'local-jsonl'
 
 /** import_chat 参数：公共导入参数（ImportOptions）+ 源格式 + 源专属参数。 */
 export interface ImportChatOptions extends ImportOptions {
@@ -640,7 +640,7 @@ export type ScanFormat =
   | 'claude' | 'codex' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode' | 'mimocode'
   | 'zcode' | 'grokbuild' | 'openclaw' | 'pi' | 'omp' | 'hermes' | 'kimi' | 'kilocode' | 'qoder'
   | 'chatgpt' | 'workbuddy' | 'qwen' | 'continue' | 'cline' | 'goose' | 'dsh4' | 'zed'
-  | 'crush' | 'teleagent' | 'trae' | 'vibe' | 'dsh'
+  | 'crush' | 'teleagent' | 'trae' | 'vibe' | 'dsh' | 'synapse-studio-v2'
 
 export type ImportStatusLabel = 'imported' | 'partial' | 'not-imported' | 'archived'
 

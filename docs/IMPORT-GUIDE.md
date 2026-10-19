@@ -46,6 +46,7 @@ database → one session; a directory → batch. Root shapes:
 | `crush` | Crush session db crush.db (<project>/.crush) |
 | `dsh` | DSH V0-V3 session logs session[.vN].jsonl[.zstd] ($DSH_HOME/sessions) |
 | `dsh4` | DSH V4+ session logs session.v4.jsonl[.zstd] ($DSH_HOME/sessions) |
+| `synapse-studio-v2` | Synapse Studio v2 session db agents.db (<userData>/data/agents.db; pre-DSH SQLite era) |
 | `local-jsonl` | Any local session file/dir — .jsonl/.jsonl.zstd/.json/.dshbundle.json; three-level auto-detect, parseFormat forces a parser |
 
 `local-jsonl` is not a source of its own: it is the fallback entry for a file no source claimed.

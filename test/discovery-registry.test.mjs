@@ -57,6 +57,7 @@ test('FORMATS 顺序固定（工具 schema enum 与默认扫描 / 流式产出�
     'claude', 'codex', 'cursor', 'gemini', 'antigravity', 'reasonix', 'opencode', 'mimocode',
     'zcode', 'grokbuild', 'openclaw', 'pi', 'omp', 'hermes', 'kimi', 'kilocode', 'qoder', 'chatgpt', 'workbuddy', 'qwen',
     'continue', 'cline', 'goose', 'dsh4', 'zed', 'crush', 'teleagent', 'trae', 'vibe', 'dsh',
+    'synapse-studio-v2',
   ])
 })
 
@@ -112,7 +113,7 @@ test('fileFormatsForPath：独占 / 多候选 / 扩展名兜底', () => {
     ['/h/.qoder/projects/p/s.jsonl', ['qoder']],
     ['/tmp/random/export.jsonl', ['claude', 'codex', 'cursor', 'reasonix', 'openclaw', 'hermes']],
     ['/tmp/random/export.json', ['gemini', 'chatgpt']],
-    ['/tmp/random/other.db', ['opencode', 'zcode', 'hermes']],
+    ['/tmp/random/other.db', ['opencode', 'zcode', 'hermes', 'synapse-studio-v2']],
     ['/tmp/random/notes.txt', []],
   ]
   for (const [path, want] of cases) assert.deepEqual(fileFormatsForPath(path), want, path)
