@@ -1,9 +1,10 @@
     // 来源下拉（'' = 全部来源；与 lib/discovery.mjs 的 FORMATS 对应，claude-code →
     // claude）。chatgpt 无默认数据根，仅显式 path 可发现。
     const SOURCES = [
-      // DSH 两代置顶（紧随「全部来源」）：这是本插件自己的会话格式，最常被用来做迁移/续聊
-      "", "dsh", "dsh4", "claude-code", "codex", "chatgpt", "cursor", "gemini", "antigravity", "reasonix",
-      "opencode", "mimocode", "teleagent", "kilocode", "zcode", "grokbuild", "openclaw", "pi", "omp", "hermes", "kimi", "qoder", "workbuddy", "qwen", "trae", "vibe", "continue", "cline", "goose", "zed", "crush", "synapse-studio-v2",
+      // DSH 两代置顶（紧随「全部来源」）：这是本插件自己的会话格式，最常被用来做迁移/续聊。
+      // synapse-studio-v2 排在最前——它是 DSH 之前的那一代，同一批用户手上通常还有它。
+      "", "synapse-studio-v2", "dsh", "dsh4", "claude-code", "codex", "chatgpt", "cursor", "gemini", "antigravity", "reasonix",
+      "opencode", "mimocode", "teleagent", "kilocode", "zcode", "grokbuild", "openclaw", "pi", "omp", "hermes", "kimi", "qoder", "workbuddy", "qwen", "trae", "vibe", "continue", "cline", "goose", "zed", "crush",
     ];
     // 「导入到」下拉：dsh3 / dsh4 = 建指定代次的 DSH 会话日志（宿主按 header.version 落盘），
     // 默认项由探测到的宿主版本决定（面板在首个扫描响应里带回 dshVersion）。其余值 = 转投到
