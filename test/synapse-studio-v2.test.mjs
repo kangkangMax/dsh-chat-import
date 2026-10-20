@@ -352,3 +352,20 @@ test('convert：工具名清洗成 ^[a-zA-Z0-9_-]+$（MCP 的 "a / b" 会让整�
   assert.deepEqual(names, ['talkdesk-developer_talkdesk_resource_get', 'WebFetch'])
   for (const n of names) assert.match(n, /^[a-zA-Z0-9_-]+$/, '工具名必须匹配 API 的字符集')
 })
+
+test('convert：连续 user 消息并入同一轮（v2 把技能注入存成紧随提问的 user 消息）', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: '把日志样式改一下' }] },
+    { role: 'user', parts: [{ type: 'text', text: '[[SKILL:x]] 技能的完整说明……' }] },
+    { role: 'assistant', parts: [{ type: 'text', text: '好的，我先看设计' }] },
+    { role: 'user', parts: [{ type: 'text', text: '顺便改下颜色' }] },
+    { role: 'assistant', parts: [{ type: 'text', text: '已改' }] },
+  ], { id: 's' })
+
+  assert.equal(out.turns.length, 2, '两条连续 user 合成一轮，不是两轮')
+  assert.equal(out.turns[0].steps.length, 1, '第一轮有助手回复（不悬空）')
+  assert.match(out.turns[0].prompt, /把日志样式改一下/)
+  assert.match(out.turns[0].prompt, /SKILL/, '注入文本并入同一轮的 prompt')
+  assert.equal(out.turns[1].prompt, '顺便改下颜色', '助手回过话之后的 user 才是新轮')
+  assert.equal(out.turns.filter((t) => t.steps.length === 0).length, 0, '没有悬空轮')
+})
