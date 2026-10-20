@@ -336,3 +336,19 @@ test('readSynapseStudioV2Summaries：老库没有 projects 表时走不带该JOI
     assert.equal(rows[0].title, '老会话')
   })
 })
+
+test('convert：工具名清洗成 ^[a-zA-Z0-9_-]+$（MCP 的 "a / b" 会让整轮被 API 400 拒绝）', () => {
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: 'q' }] },
+    {
+      role: 'assistant',
+      parts: [
+        { type: 'tool-talkdesk-developer / talkdesk_resource_get', toolCallId: 'm1', input: {}, output: { ok: 1 } },
+        { type: 'tool-WebFetch', toolCallId: 'm2', input: {}, output: { ok: 1 } },
+      ],
+    },
+  ], { id: 's' })
+  const names = out.turns[0].steps[0].toolCalls.map((c) => c.name)
+  assert.deepEqual(names, ['talkdesk-developer_talkdesk_resource_get', 'WebFetch'])
+  for (const n of names) assert.match(n, /^[a-zA-Z0-9_-]+$/, '工具名必须匹配 API 的字符集')
+})
