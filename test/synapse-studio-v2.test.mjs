@@ -369,3 +369,16 @@ test('convert：连续 user 消息并入同一轮（v2 把技能注入存成紧�
   assert.equal(out.turns[1].prompt, '顺便改下颜色', '助手回过话之后的 user 才是新轮')
   assert.equal(out.turns.filter((t) => t.steps.length === 0).length, 0, '没有悬空轮')
 })
+
+test('convert：注入消息把提问原样重复时用取代而非追加（同一轮里不出现两遍）', () => {
+  const q = '把日志样式改一下'
+  const out = conv([
+    { role: 'user', parts: [{ type: 'text', text: q }] },
+    { role: 'user', parts: [{ type: 'text', text: `[[SKILL:x]] 技能说明……[[/SKILL:x]]\n\n${q}` }] },
+    { role: 'assistant', parts: [{ type: 'text', text: '好' }] },
+  ], { id: 's' })
+  assert.equal(out.turns.length, 1)
+  const occurrences = out.turns[0].prompt.split(q).length - 1
+  assert.equal(occurrences, 1, '提问只出现一次：' + JSON.stringify(out.turns[0].prompt.slice(0, 120)))
+  assert.match(out.turns[0].prompt, /SKILL/, '注入正文保留')
+})
