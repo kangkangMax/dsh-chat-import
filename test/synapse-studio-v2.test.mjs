@@ -146,25 +146,14 @@ test('readSynapseStudioV2Summaries：打不开的路径返回 null，不抛错',
   })
 })
 
-test('synapseUserDataDirs：三平台路径各自正确，win32 缺 APPDATA 返回空数组', () => {
+test('synapseUserDataDirs：只给 macOS 的两个产品变体路径', () => {
   const home = join('home', 'u')
-  assert.deepEqual(synapseUserDataDirs(home, {}, 'linux'), [
-    join(home, '.config', 'Synapse Studio', 'data', 'agents.db'),
-    join(home, '.config', 'Synapse Studio Dev', 'data', 'agents.db'),
-  ])
-  assert.deepEqual(synapseUserDataDirs(home, { XDG_CONFIG_HOME: join(home, 'cfg') }, 'linux'), [
-    join(home, 'cfg', 'Synapse Studio', 'data', 'agents.db'),
-    join(home, 'cfg', 'Synapse Studio Dev', 'data', 'agents.db'),
-  ])
-  assert.deepEqual(synapseUserDataDirs(home, { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' }, 'win32'), [
-    join('C:\\Users\\u\\AppData\\Roaming', 'Synapse Studio', 'data', 'agents.db'),
-    join('C:\\Users\\u\\AppData\\Roaming', 'Synapse Studio Dev', 'data', 'agents.db'),
-  ])
-  assert.deepEqual(synapseUserDataDirs(home, {}, 'win32'), [], 'win32 缺 APPDATA → 无默认根')
-  assert.deepEqual(synapseUserDataDirs(home, {}, 'darwin'), [
+  assert.deepEqual(synapseUserDataDirs(home), [
     join(home, 'Library', 'Application Support', 'Synapse Studio', 'data', 'agents.db'),
     join(home, 'Library', 'Application Support', 'Synapse Studio Dev', 'data', 'agents.db'),
   ])
+  // 仅 macOS：多传参数不会改变结果（函数已不收 env / platform）
+  assert.deepEqual(synapseUserDataDirs(home, {}, 'win32'), synapseUserDataDirs(home))
 })
 
 test('isSynapseBackupPath：只认 data-backup-* 快照目录，不误伤主库路径', () => {
